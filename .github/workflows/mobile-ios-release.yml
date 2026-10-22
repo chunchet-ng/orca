@@ -70,6 +70,7 @@ jobs:
           import { app } from 'electron'
           import { ElectronSecretStore } from '../src/main/host/electron-secret-store'
           import { setSecretStore } from '../src/shared/secret-store'
+          import { restrictWindowsDirectory } from '../src/shared/secure-path-windows-acl'
           import { encodePairingOffer } from '../src/shared/pairing'
           import { addEnvironmentFromPairingCode, resolveEnvironment } from '../src/shared/runtime-environment-store'
           import { writeRuntimeEdgeAuth, readRuntimeEdgeAuth, clearRuntimeEdgeAuth, getRuntimeEdgeAuthStatus } from '../src/main/credentials/runtime-edge-auth-store'
@@ -77,7 +78,7 @@ jobs:
           mkdirSync(profile, { recursive: true, mode: 0o700 })
           app.setPath('userData', profile)
           let stage = 'ready'
-          app.whenReady().then(() => {
+          app.whenReady().then(async () => {
             setSecretStore(new ElectronSecretStore())
             const headers = { 'X-Orca-Synthetic': 'synthetic-private-value' }
             const mode = process.env.ORCA_EDGE_MODE
@@ -111,6 +112,11 @@ jobs:
               stage = 'clear-credentials'
               clearRuntimeEdgeAuth(profile, environment.id)
               assert.deepEqual(getRuntimeEdgeAuthStatus(profile, environment), { configured: false, unreadable: false })
+            }
+            if (process.platform === 'win32') {
+              stage = 'settle-directory-protection'
+              const outcomes = await Promise.all([profile, join(profile, 'runtime-edge-auth')].map(path => restrictWindowsDirectory(path)))
+              assert(outcomes.every(Boolean))
             }
             console.log('PASS: native protected credential ' + mode + ' on ' + process.platform)
             app.quit()
