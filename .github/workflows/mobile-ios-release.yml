@@ -89,6 +89,18 @@ jobs:
                 assert(!readFileSync(join(directory, name)).includes(Buffer.from('synthetic-private-value')))
               }
             }
+            if (mode === 'read') {
+              stage = 'inspect-ciphertext'
+              const directory = join(profile, 'runtime-edge-auth')
+              const files = readdirSync(directory)
+              assert.equal(files.length, 1)
+              const envelope = JSON.parse(readFileSync(join(directory, files[0]), 'utf8'))
+              const secretStore = new ElectronSecretStore()
+              console.log('Synthetic reload protection available=' + secretStore.isEncryptionAvailable() + ', gap=' + (secretStore.describeProtectionGap() !== null))
+              stage = 'decrypt-ciphertext'
+              const payload = JSON.parse(secretStore.decryptString(Buffer.from(envelope.ciphertext, 'base64')))
+              console.log('Synthetic binding environment=' + (payload.environmentId === environment.id) + ', key=' + (payload.hostPublicKeyB64 === environment.pairing?.publicKeyB64))
+            }
             stage = 'read-credentials-' + mode
             assert.deepEqual(readRuntimeEdgeAuth(profile, environment)?.headers, headers)
             assert.deepEqual(getRuntimeEdgeAuthStatus(profile, environment), { configured: true, unreadable: false })
