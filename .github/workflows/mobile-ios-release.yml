@@ -73,10 +73,12 @@ jobs:
           const profile = process.env.ORCA_EDGE_PROFILE!
           mkdirSync(profile, { recursive: true, mode: 0o700 })
           app.setPath('userData', profile)
+          let stage = 'ready'
           app.whenReady().then(() => {
             setSecretStore(new ElectronSecretStore())
             const headers = { 'X-Orca-Synthetic': 'synthetic-private-value' }
             const mode = process.env.ORCA_EDGE_MODE
+            stage = 'resolve-environment-' + mode
             const environment = mode === 'write'
               ? addEnvironmentFromPairingCode(profile, { name: 'native-edge', pairingCode: encodePairingOffer({ v: 2, endpoint: 'wss://orca.example', deviceToken: 'synthetic-device', publicKeyB64: Buffer.alloc(32, 1).toString('base64') }) })
               : resolveEnvironment(profile, 'native-edge')
@@ -87,15 +89,17 @@ jobs:
                 assert(!readFileSync(join(directory, name)).includes(Buffer.from('synthetic-private-value')))
               }
             }
+            stage = 'read-credentials-' + mode
             assert.deepEqual(readRuntimeEdgeAuth(profile, environment)?.headers, headers)
             assert.deepEqual(getRuntimeEdgeAuthStatus(profile, environment), { configured: true, unreadable: false })
             if (mode === 'read') {
+              stage = 'clear-credentials'
               clearRuntimeEdgeAuth(profile, environment.id)
               assert.deepEqual(getRuntimeEdgeAuthStatus(profile, environment), { configured: false, unreadable: false })
             }
             console.log('PASS: native protected credential ' + mode + ' on ' + process.platform)
             app.exit(0)
-          }).catch(() => { console.error('Native protected credential validation failed'); app.exit(1) })
+          }).catch((error) => { console.error('Synthetic native credential validation failed at ' + stage, error); app.exit(1) })
           TS
           pnpm exec esbuild .tmp/edge-native-smoke.ts --bundle --platform=node --format=cjs --packages=external --outfile=.tmp/edge-native-smoke.cjs
           node --input-type=module <<'JS'
@@ -114,5 +118,5 @@ jobs:
               })
               if (result.error || result.status !== 0) throw new Error('Native protected credential check failed')
             }
-          } finally { rmSync(profile, { recursive: true, force: true }) }
+          } finally { rmSync(profile, { recursive: true, force: true, maxRetries: 8, retryDelay: 150 }) }
           JS
