@@ -2,6 +2,11 @@ name: Cloudflare platform validation
 
 on:
   workflow_dispatch:
+    inputs:
+      compile_native:
+        type: boolean
+        default: true
+        description: Rebuild native iOS after native inputs change
 
 permissions:
   contents: read
@@ -59,6 +64,7 @@ jobs:
         run: pnpm exec vitest run src/transport/host-endpoint.test.ts src/transport/host-endpoint-edit.test.ts src/transport/endpoint-auth-headers.test.ts src/transport/endpoint-auth-headers-store.test.ts src/transport/rpc-client-socket-headers.test.ts src/transport/mobile-endpoint-lifecycle-host-edit.test.ts scripts/endpoint-auth-native-bridge.test.ts scripts/endpoint-auth-ios-codegen.test.ts src/host-edit-save-flow.test.ts src/host-edit-route-accessibility.test.ts src/components/edge-auth-headers-section.test.tsx src/transport/pairing-edge-auth-attempt.test.ts src/transport/pre-profile-pairing-coordinator.test.ts src/transport/pairing-keychain.test.ts src/pair-confirm-edge-auth.test.tsx src/pair-scan-edge-auth.test.tsx
 
   ios-compile:
+    if: inputs.compile_native
     name: Compile tunnel auth for iOS Simulator
     runs-on: macos-26
     timeout-minutes: 90
