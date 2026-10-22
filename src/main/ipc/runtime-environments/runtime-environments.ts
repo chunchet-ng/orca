@@ -1,5 +1,6 @@
 import { createAiVaultAssociationObserver } from '../ai-vault-projection-dependency'
 import { invalidateAiVaultHostLegCache } from '../ai-vault-host-leg-cache'
+import { registerRuntimeEnvironmentEdgeAuthHandlers } from './runtime-environment-edge-auth-handlers'
 import {
   registerRuntimeEnvironmentSubscriptionHandlers,
   type RetainedRemoteRuntimeSubscription,
@@ -140,6 +141,10 @@ export function registerRuntimeEnvironmentHandlers(store: Store): void {
   })
   registerRuntimeEnvironmentRecoveryHandler()
   registerRuntimeEnvironmentRepairHandler({
+    getUserDataPath,
+    invalidateTransport: invalidateRuntimeEnvironmentTransport
+  })
+  registerRuntimeEnvironmentEdgeAuthHandlers({
     getUserDataPath,
     invalidateTransport: invalidateRuntimeEnvironmentTransport
   })
