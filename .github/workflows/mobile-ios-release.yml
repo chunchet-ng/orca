@@ -57,3 +57,65 @@ jobs:
         run: pnpm exec node-gyp rebuild --directory native/windows-security
       - name: Test desktop and CLI transports
         run: pnpm exec vitest run --config config/vitest.config.ts src/shared/network/endpoint-auth-headers.test.ts src/shared/remote-runtime-edge-auth.test.ts src/cli/runtime/websocket-transport.test.ts src/cli/runtime/remote-edge-auth-file.test.ts src/cli/runtime/remote-edge-auth-file-windows.test.ts src/main/credentials/runtime-edge-auth-store.test.ts src/main/runtime/runtime-environment-edge-auth.test.ts src/main/runtime/mobile-desktop-relay/mobile-desktop-relay.test.ts src/main/ipc/runtime-environments/runtime-environment-edge-auth-status.test.ts src/main/ipc/runtime-environments/runtime-environment-mobile-relay-hosts.test.ts src/main/ipc/runtime-environments/runtime-environment-edge-auth-handlers.test.ts src/main/ipc/runtime-environments/runtime-environment-pairing-edge-auth.test.ts src/renderer/src/components/settings/runtime-add-server-dialog.test.tsx src/renderer/src/components/settings/runtime-server-edge-auth-action.test.tsx
+      - name: Verify OS-protected credential reload in Electron
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          node node_modules/electron/install.js
+          mkdir -p .tmp
+          cat > .tmp/edge-native-smoke.ts <<'TS'
+          import assert from 'node:assert/strict'
+          import { readFileSync, readdirSync, mkdirSync } from 'node:fs'
+          import { join } from 'node:path'
+          import { app } from 'electron'
+          import { ElectronSecretStore } from '../src/main/host/electron-secret-store'
+          import { setSecretStore } from '../src/shared/secret-store'
+          import { encodePairingOffer } from '../src/shared/pairing'
+          import { addEnvironmentFromPairingCode, resolveEnvironment } from '../src/shared/runtime-environment-store'
+          import { writeRuntimeEdgeAuth, readRuntimeEdgeAuth, clearRuntimeEdgeAuth, getRuntimeEdgeAuthStatus } from '../src/main/credentials/runtime-edge-auth-store'
+          const profile = process.env.ORCA_EDGE_PROFILE!
+          mkdirSync(profile, { recursive: true, mode: 0o700 })
+          app.setPath('userData', profile)
+          app.whenReady().then(() => {
+            setSecretStore(new ElectronSecretStore())
+            const headers = { 'X-Orca-Synthetic': 'synthetic-private-value' }
+            const mode = process.env.ORCA_EDGE_MODE
+            const environment = mode === 'write'
+              ? addEnvironmentFromPairingCode(profile, { name: 'native-edge', pairingCode: encodePairingOffer({ v: 2, endpoint: 'wss://orca.example', deviceToken: 'synthetic-device', publicKeyB64: Buffer.alloc(32, 1).toString('base64') }) })
+              : resolveEnvironment(profile, 'native-edge')
+            if (mode === 'write') {
+              writeRuntimeEdgeAuth(profile, environment, headers)
+              const directory = join(profile, 'runtime-edge-auth')
+              for (const name of readdirSync(directory)) {
+                assert(!readFileSync(join(directory, name)).includes(Buffer.from('synthetic-private-value')))
+              }
+            }
+            assert.deepEqual(readRuntimeEdgeAuth(profile, environment)?.headers, headers)
+            assert.deepEqual(getRuntimeEdgeAuthStatus(profile, environment), { configured: true, unreadable: false })
+            if (mode === 'read') {
+              clearRuntimeEdgeAuth(profile, environment.id)
+              assert.deepEqual(getRuntimeEdgeAuthStatus(profile, environment), { configured: false, unreadable: false })
+            }
+            console.log('PASS: native protected credential ' + mode + ' on ' + process.platform)
+            app.exit(0)
+          }).catch(() => { console.error('Native protected credential validation failed'); app.exit(1) })
+          TS
+          pnpm exec esbuild .tmp/edge-native-smoke.ts --bundle --platform=node --format=cjs --packages=external --outfile=.tmp/edge-native-smoke.cjs
+          node --input-type=module <<'JS'
+          import { spawnSync } from 'node:child_process'
+          import { createRequire } from 'node:module'
+          import { mkdtempSync, rmSync } from 'node:fs'
+          import { tmpdir } from 'node:os'
+          import { join, resolve } from 'node:path'
+          const require = createRequire(import.meta.url)
+          const profile = mkdtempSync(join(tmpdir(), 'orca-edge-native-'))
+          try {
+            for (const mode of ['write', 'read']) {
+              const result = spawnSync(require('electron'), [resolve('.tmp/edge-native-smoke.cjs')], {
+                stdio: 'inherit', timeout: 120000,
+                env: { ...process.env, ORCA_BACKGROUND_LAUNCH: '1', ORCA_EDGE_PROFILE: profile, ORCA_EDGE_MODE: mode }
+              })
+              if (result.error || result.status !== 0) throw new Error('Native protected credential check failed')
+            }
+          } finally { rmSync(profile, { recursive: true, force: true }) }
+          JS
