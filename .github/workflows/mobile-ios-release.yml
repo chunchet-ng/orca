@@ -58,7 +58,7 @@ jobs:
       - name: Build internal packages
         run: pnpm run build:packages
       - name: Test desktop and CLI transports
-        run: pnpm exec vitest run --config config/vitest.config.ts src/shared/network/server-share-address.test.ts src/shared/pairing.test.ts src/shared/remote-runtime-client.test.ts src/shared/remote-runtime-request-websocket.test.ts src/cli/runtime/websocket-transport.test.ts
+        run: pnpm exec vitest run --config config/vitest.config.ts src/shared/network/server-share-address.test.ts src/shared/pairing.test.ts src/shared/remote-runtime-client.test.ts src/shared/remote-runtime/requests/remote-runtime-request-websocket.test.ts src/cli/runtime/websocket-transport.test.ts
       - name: Install mobile dependencies
         working-directory: mobile
         run: pnpm install --frozen-lockfile
