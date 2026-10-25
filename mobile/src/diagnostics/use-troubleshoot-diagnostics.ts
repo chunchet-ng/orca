@@ -112,6 +112,9 @@ export function useTroubleshootDiagnostics() {
         if (!isCurrentRun()) {
           return
         }
+        if (!isCurrentProbe()) {
+          continue
+        }
         results.push({
           label: host.name,
           status: reachable ? 'pass' : 'fail',
