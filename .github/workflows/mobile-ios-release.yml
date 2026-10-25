@@ -50,6 +50,8 @@ jobs:
         run: test "$(pnpm --version)" = 12.14.0
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install manifest-pinned Bun binary
+        run: node node_modules/bun/install.js
       - name: Build internal packages
         run: pnpm run build:packages
       - name: Build Windows permission verifier
