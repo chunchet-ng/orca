@@ -42,6 +42,9 @@ jobs:
           appendFileSync(process.env.GITHUB_PATH, (process.platform === 'win32' ? prefix : join(prefix, 'bin')) + '\n')
           JS
           npm install --global --prefix "$RUNNER_TEMP/orca-pnpm" "$RUNNER_TEMP/pnpm-12.14.0.tgz" --no-audit --no-fund --fetch-timeout=120000 --fetch-retries=2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version-file: config/.bun-version
       - name: Verify pnpm version
         shell: bash
         run: test "$(pnpm --version)" = 12.14.0
@@ -54,6 +57,8 @@ jobs:
         run: pnpm exec node-gyp rebuild --directory native/windows-security
       - name: Test desktop and CLI transports
         run: pnpm exec vitest run --config config/vitest.config.ts src/shared/network/endpoint-auth-headers.test.ts src/shared/remote-runtime-edge-auth.test.ts src/cli/runtime/websocket-transport.test.ts src/cli/runtime/remote-edge-auth-file.test.ts src/cli/runtime/remote-edge-auth-file-windows.test.ts src/main/credentials/runtime-edge-auth-store.test.ts src/main/runtime/runtime-environment-edge-auth.test.ts src/main/runtime/mobile-desktop-relay/mobile-desktop-relay.test.ts src/main/ipc/runtime-environments/runtime-environment-edge-auth-status.test.ts src/main/ipc/runtime-environments/runtime-environment-mobile-relay-hosts.test.ts src/main/ipc/runtime-environments/runtime-environment-edge-auth-handlers.test.ts src/main/ipc/runtime-environments/runtime-environment-pairing-edge-auth.test.ts src/renderer/src/components/settings/runtime-add-server-dialog.test.tsx src/renderer/src/components/settings/runtime-server-edge-auth-action.test.tsx
+      - name: Test TLS contracts through the standard runtime selector
+        run: pnpm test src/shared/remote-runtime-edge-auth.test.ts
       - name: Verify OS-protected credential reload in Electron
         if: runner.os != 'Linux'
         shell: bash
