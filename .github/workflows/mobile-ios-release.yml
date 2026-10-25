@@ -10,9 +10,6 @@ env:
   ORCA_BACKGROUND_LAUNCH: '1'
   CI: '1'
 
-permissions:
-  contents: read
-
 jobs:
   transports:
     name: Tunnel transport tests (${{ matrix.os }})
